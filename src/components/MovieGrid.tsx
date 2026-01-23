@@ -1,15 +1,43 @@
 import { useState, useMemo } from "react";
-import { movies } from "@/data/movies";
+import { useMovies } from "@/hooks/useMovies";
 import MovieCard from "./MovieCard";
 import GenreFilter from "./GenreFilter";
 
+const genres = ["All", "Action", "Comedy", "Drama", "Horror", "Romance", "Sci-Fi", "Thriller"] as const;
+
 const MovieGrid = () => {
   const [selectedGenre, setSelectedGenre] = useState("All");
+  const { data: movies, isLoading, error } = useMovies();
 
   const filteredMovies = useMemo(() => {
+    if (!movies) return [];
     if (selectedGenre === "All") return movies;
-    return movies.filter((movie) => movie.genre.includes(selectedGenre));
-  }, [selectedGenre]);
+    return movies.filter((movie) => movie.genre?.includes(selectedGenre));
+  }, [selectedGenre, movies]);
+
+  if (isLoading) {
+    return (
+      <section className="py-16 md:py-24 bg-background">
+        <div className="container">
+          <div className="text-center py-16">
+            <div className="animate-pulse text-muted-foreground">Loading movies...</div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="py-16 md:py-24 bg-background">
+        <div className="container">
+          <div className="text-center py-16">
+            <p className="text-destructive">Failed to load movies. Please try again.</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="py-16 md:py-24 bg-background">
