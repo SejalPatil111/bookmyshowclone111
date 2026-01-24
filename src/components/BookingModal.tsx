@@ -13,6 +13,7 @@ import { useCreateBooking, useUpdateBookingStatus, processMockPayment, sendBooki
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { theaters, getTheaterShowtimes, Theater, TheaterShowtime } from "@/data/theaters";
+import SeatSelector from "@/components/SeatSelector";
 
 interface BookingModalProps {
   movie: Movie;
@@ -20,7 +21,7 @@ interface BookingModalProps {
   onClose: () => void;
 }
 
-type BookingStep = "theater" | "seats" | "payment" | "confirmation";
+type BookingStep = "theater" | "ticket-count" | "seats" | "payment" | "confirmation";
 
 const BookingModal = ({ movie, isOpen, onClose }: BookingModalProps) => {
   const { user } = useAuth();
@@ -33,7 +34,8 @@ const BookingModal = ({ movie, isOpen, onClose }: BookingModalProps) => {
   const [selectedTheater, setSelectedTheater] = useState<Theater | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [selectedFormat, setSelectedFormat] = useState<string>("");
-  const [seats, setSeats] = useState(1);
+  const [ticketCount, setTicketCount] = useState(1);
+  const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
 
@@ -42,14 +44,15 @@ const BookingModal = ({ movie, isOpen, onClose }: BookingModalProps) => {
     [movie.show_times]
   );
 
-  const totalAmount = (movie.price || 12.99) * seats;
+  const totalAmount = (movie.price || 12.99) * ticketCount;
 
   const handleClose = () => {
     setStep("theater");
     setSelectedTheater(null);
     setSelectedTime("");
     setSelectedFormat("");
-    setSeats(1);
+    setTicketCount(1);
+    setSelectedSeats([]);
     setBookingId(null);
     onClose();
   };
@@ -58,7 +61,8 @@ const BookingModal = ({ movie, isOpen, onClose }: BookingModalProps) => {
     setSelectedTheater(theater);
     setSelectedTime(time);
     setSelectedFormat(format);
-    setStep("seats");
+    setSelectedSeats([]); // Reset seat selection when changing showtime
+    setStep("ticket-count");
   };
 
   const handleBooking = async () => {
@@ -81,14 +85,23 @@ const BookingModal = ({ movie, isOpen, onClose }: BookingModalProps) => {
       return;
     }
 
+    if (selectedSeats.length !== ticketCount) {
+      toast({
+        title: "Select seats",
+        description: `Please select ${ticketCount} seat(s) to continue.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
       const booking = await createBooking.mutateAsync({
         movie_id: movie.id,
-        show_time: `${selectedTime} (${selectedFormat}) - ${selectedTheater.name}`,
+        show_time: `${selectedTime} (${selectedFormat}) - ${selectedTheater.name} - Seats: ${selectedSeats.sort().join(", ")}`,
         show_date: format(selectedDate, "yyyy-MM-dd"),
-        seats,
+        seats: ticketCount,
         total_amount: totalAmount,
       });
 
@@ -153,7 +166,8 @@ const BookingModal = ({ movie, isOpen, onClose }: BookingModalProps) => {
         <DialogHeader>
           <DialogTitle className="font-display text-2xl text-foreground">
             {step === "theater" && `Theaters Showing ${movie.title}`}
-            {step === "seats" && "Select Seats"}
+            {step === "ticket-count" && "How Many Tickets?"}
+            {step === "seats" && "Select Your Seats"}
             {step === "payment" && "Payment"}
             {step === "confirmation" && "Booking Confirmed!"}
           </DialogTitle>
@@ -259,7 +273,7 @@ const BookingModal = ({ movie, isOpen, onClose }: BookingModalProps) => {
           </div>
         )}
 
-        {step === "seats" && (
+        {step === "ticket-count" && (
           <div className="space-y-6">
             {/* Selected Theater & Time Info */}
             <div className="bg-secondary rounded-lg p-4 space-y-2">
@@ -292,27 +306,33 @@ const BookingModal = ({ movie, isOpen, onClose }: BookingModalProps) => {
               </div>
             </div>
 
-            {/* Seats Selection */}
+            {/* Ticket Count Selection */}
             <div className="space-y-2">
-              <Label>Number of Seats</Label>
+              <Label>Number of Tickets</Label>
               <div className="flex items-center gap-4">
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => setSeats(Math.max(1, seats - 1))}
-                  disabled={seats <= 1}
+                  onClick={() => {
+                    setTicketCount(Math.max(1, ticketCount - 1));
+                    setSelectedSeats([]);
+                  }}
+                  disabled={ticketCount <= 1}
                   className="bg-secondary border-border"
                 >
                   <Minus className="w-4 h-4" />
                 </Button>
                 <span className="text-2xl font-bold text-foreground w-12 text-center">
-                  {seats}
+                  {ticketCount}
                 </span>
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => setSeats(Math.min(10, seats + 1))}
-                  disabled={seats >= 10}
+                  onClick={() => {
+                    setTicketCount(Math.min(10, ticketCount + 1));
+                    setSelectedSeats([]);
+                  }}
+                  disabled={ticketCount >= 10}
                   className="bg-secondary border-border"
                 >
                   <Plus className="w-4 h-4" />
@@ -341,14 +361,72 @@ const BookingModal = ({ movie, isOpen, onClose }: BookingModalProps) => {
                 variant="hero"
                 size="lg"
                 className="flex-1"
+                onClick={() => setStep("seats")}
+              >
+                Select Seats
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === "seats" && (
+          <div className="space-y-6">
+            {/* Selected Theater & Time Info */}
+            <div className="bg-secondary rounded-lg p-4 space-y-2">
+              <div className="flex items-center gap-2 text-primary">
+                <MapPin className="w-4 h-4" />
+                <span className="font-medium">{selectedTheater?.name}</span>
+              </div>
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <span>{format(selectedDate, "EEEE, MMM d")}</span>
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {selectedTime} ({selectedFormat})
+                </span>
+                <span>• {ticketCount} ticket(s)</span>
+              </div>
+            </div>
+
+            {/* Seat Selector */}
+            <SeatSelector
+              maxSeats={ticketCount}
+              selectedSeats={selectedSeats}
+              onSeatSelect={setSelectedSeats}
+              theaterId={selectedTheater?.id || ""}
+              showtime={selectedTime}
+            />
+
+            {/* Total */}
+            <div className="flex justify-between items-center p-4 bg-secondary rounded-lg">
+              <span className="text-muted-foreground">Total Amount</span>
+              <span className="text-2xl font-bold text-foreground">
+                ${totalAmount.toFixed(2)}
+              </span>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setStep("ticket-count")}
+              >
+                Back
+              </Button>
+              <Button
+                variant="hero"
+                size="lg"
+                className="flex-1"
                 onClick={handleBooking}
-                disabled={isProcessing}
+                disabled={isProcessing || selectedSeats.length !== ticketCount}
               >
                 {isProcessing ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
                     Processing...
                   </>
+                ) : selectedSeats.length !== ticketCount ? (
+                  `Select ${ticketCount - selectedSeats.length} more seat(s)`
                 ) : (
                   "Proceed to Payment"
                 )}
@@ -383,7 +461,7 @@ const BookingModal = ({ movie, isOpen, onClose }: BookingModalProps) => {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Seats</span>
-                <span className="text-foreground">{seats}</span>
+                <span className="text-foreground">{selectedSeats.sort().join(", ")}</span>
               </div>
               <div className="border-t border-border pt-3 flex justify-between">
                 <span className="font-semibold text-foreground">Total</span>
@@ -470,7 +548,7 @@ const BookingModal = ({ movie, isOpen, onClose }: BookingModalProps) => {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Seats</span>
-                <span className="text-foreground">{seats}</span>
+                <span className="text-foreground">{selectedSeats.sort().join(", ")}</span>
               </div>
             </div>
 
