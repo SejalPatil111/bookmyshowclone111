@@ -3,10 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, addDays } from "date-fns";
-import { Calendar as CalendarIcon, Minus, Plus, Check, Loader2, MapPin, Clock, Film, Ticket, Receipt } from "lucide-react";
+import DateSelector from "@/components/DateSelector";
+import { Minus, Plus, Check, Loader2, MapPin, Clock, Film, Ticket, Receipt } from "lucide-react";
 import { Movie } from "@/hooks/useMovies";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateBooking, useUpdateBookingStatus, processMockPayment, sendBookingConfirmationEmail } from "@/hooks/useBookings";
@@ -181,29 +180,13 @@ const BookingModal = ({ movie, isOpen, onClose }: BookingModalProps) => {
 
         {step === "theater" && (
           <div className="space-y-6">
-            {/* Date Selection */}
+            {/* Date Selection - Horizontal Scrollable */}
             <div className="space-y-2">
               <Label className="text-base">Select Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start bg-secondary border-border"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(selectedDate, "EEEE, MMMM d, yyyy")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 bg-card border-border">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(date) => date && setSelectedDate(date)}
-                    disabled={(date) => date < new Date()}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <DateSelector
+                selectedDate={selectedDate}
+                onDateSelect={setSelectedDate}
+              />
             </div>
 
             {/* Theaters List */}
