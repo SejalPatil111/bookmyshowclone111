@@ -6,14 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, addDays } from "date-fns";
-import { Calendar as CalendarIcon, Minus, Plus, CreditCard, Check, Loader2, MapPin, Clock } from "lucide-react";
+import { Calendar as CalendarIcon, Minus, Plus, Check, Loader2, MapPin, Clock, Film, Ticket, Receipt } from "lucide-react";
 import { Movie } from "@/hooks/useMovies";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateBooking, useUpdateBookingStatus, processMockPayment, sendBookingConfirmationEmail } from "@/hooks/useBookings";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { theaters, getTheaterShowtimes, Theater, TheaterShowtime } from "@/data/theaters";
+import { theaters, getTheaterShowtimes, Theater } from "@/data/theaters";
 import SeatSelector from "@/components/SeatSelector";
+import PaymentForm, { PaymentMethod } from "@/components/PaymentForm";
 
 interface BookingModalProps {
   movie: Movie;
@@ -118,7 +119,7 @@ const BookingModal = ({ movie, isOpen, onClose }: BookingModalProps) => {
     }
   };
 
-  const handlePayment = async () => {
+  const handlePayment = async (method: PaymentMethod) => {
     if (!bookingId) return;
 
     setIsProcessing(true);
@@ -130,7 +131,12 @@ const BookingModal = ({ movie, isOpen, onClose }: BookingModalProps) => {
         status: "confirmed",
       });
 
-      // Process mock payment
+      // Process mock payment with selected method
+      toast({
+        title: `Processing ${method.replace("-", " ")} payment...`,
+        description: "Please wait while we process your payment.",
+      });
+
       const paymentId = await processMockPayment(totalAmount);
 
       // Update to paid with payment ID
@@ -437,77 +443,52 @@ const BookingModal = ({ movie, isOpen, onClose }: BookingModalProps) => {
 
         {step === "payment" && (
           <div className="space-y-6">
-            {/* Order Summary */}
-            <div className="bg-secondary rounded-lg p-4 space-y-3">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Movie</span>
-                <span className="text-foreground">{movie.title}</span>
+            {/* Booking Summary Header */}
+            <div className="bg-gradient-to-r from-primary/20 to-primary/5 rounded-xl p-4 border border-primary/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Receipt className="w-5 h-5 text-primary" />
+                <h3 className="font-semibold text-foreground">Booking Summary</h3>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Theater</span>
-                <span className="text-foreground text-right text-sm">
-                  {selectedTheater?.name}
-                </span>
+              
+              <div className="flex gap-4">
+                <img
+                  src={movie.poster || "/placeholder.svg"}
+                  alt={movie.title}
+                  className="w-16 h-24 object-cover rounded-lg"
+                />
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Film className="w-4 h-4 text-primary" />
+                    <span className="font-medium text-foreground">{movie.title}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <MapPin className="w-3 h-3" />
+                    <span>{selectedTheater?.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Clock className="w-3 h-3" />
+                    <span>{format(selectedDate, "EEE, MMM d")} • {selectedTime} ({selectedFormat})</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Ticket className="w-3 h-3" />
+                    <span>{ticketCount} ticket(s) • Seats: {selectedSeats.sort().join(", ")}</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Date</span>
-                <span className="text-foreground">{format(selectedDate, "PPP")}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Time</span>
-                <span className="text-foreground">
-                  {selectedTime} ({selectedFormat})
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Seats</span>
-                <span className="text-foreground">{selectedSeats.sort().join(", ")}</span>
-              </div>
-              <div className="border-t border-border pt-3 flex justify-between">
-                <span className="font-semibold text-foreground">Total</span>
-                <span className="font-bold text-primary text-xl">
-                  ${totalAmount.toFixed(2)}
-                </span>
+
+              <div className="mt-4 pt-3 border-t border-primary/20 flex justify-between items-center">
+                <span className="text-muted-foreground">Total Amount</span>
+                <span className="text-2xl font-bold text-primary">${totalAmount.toFixed(2)}</span>
               </div>
             </div>
 
-            {/* Mock Payment Card */}
-            <div className="bg-secondary rounded-lg p-4 space-y-4">
-              <div className="flex items-center gap-3">
-                <CreditCard className="w-6 h-6 text-primary" />
-                <span className="text-foreground font-medium">Mock Payment</span>
-              </div>
-              <p className="text-muted-foreground text-sm">
-                This is a simulated payment. Click "Pay Now" to complete the booking.
-              </p>
-            </div>
-
-            {/* Payment Button */}
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setStep("seats")}
-              >
-                Back
-              </Button>
-              <Button
-                variant="hero"
-                size="lg"
-                className="flex-1"
-                onClick={handlePayment}
-                disabled={isProcessing}
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Processing Payment...
-                  </>
-                ) : (
-                  `Pay $${totalAmount.toFixed(2)}`
-                )}
-              </Button>
-            </div>
+            {/* Payment Form */}
+            <PaymentForm
+              totalAmount={totalAmount}
+              isProcessing={isProcessing}
+              onSubmit={handlePayment}
+              onBack={() => setStep("seats")}
+            />
           </div>
         )}
 
